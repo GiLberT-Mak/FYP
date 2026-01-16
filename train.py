@@ -39,7 +39,7 @@ HIDDEN_SIZE = 512
 # ==========================================
 # DATASET CLASS
 # ==========================================
-class NinaEfficientDataset(Dataset):
+class LoadDataset(Dataset):
     def __init__(self, folder_path):
         self.files = glob.glob(os.path.join(folder_path, "*.mat"))
         self.raw_data_list = []
@@ -139,8 +139,8 @@ class TunedSNN(nn.Module):
 # ==========================================
 # TRAINING LOOP
 # ==========================================
-def train_turbo():
-    dataset = NinaEfficientDataset(DATA_FOLDER)
+def train():
+    dataset = LoadDataset(DATA_FOLDER)
     if len(dataset) == 0: return
 
     # Windows usually prefers num_workers=0 or 2. If it hangs, set to 0.
@@ -207,4 +207,4 @@ def train_turbo():
                 print(f"💾 Model saved to {MODEL_SAVE_PATH}")
 
 if __name__ == "__main__":
-    train_turbo()
+    train()
