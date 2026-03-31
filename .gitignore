@@ -1,2 +1,19 @@
-/Data
-/.DS_Store
+# NinaProDB dataset files — large binaries, do not commit
+/Data/
+
+# Preprocessed data cache (auto-generated)
+/.cache/
+
+# Trained model weights — large binaries, do not commit
+/Trained_SNN/
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Result charts and CSVs (optional — remove comment to commit results)
+# /Result/

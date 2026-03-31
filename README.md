@@ -1,0 +1,96 @@
+# EMG Hand Gesture Classification with Spiking Neural Networks
+
+A per-patient **Spiking Neural Network (SNN)** for classifying hand gestures from surface EMG signals, built with [snntorch](https://snntorch.readthedocs.io/) and PyTorch. Uses the [NinaProDB](http://ninapro.hevs.ch/) dataset.
+
+---
+
+## Project Structure
+
+```
+FYP/
+├── Data/                   # All .mat files — train (reps 1–7) & test (reps 8+) are split internally
+├── Trained_SNN/            # Saved per-patient model weights (.pth)
+├── Result/                 # Outputs: confusion matrices, spike rasters, CSVs
+├── .cache/                 # Preprocessed .npz cache (auto-generated, not committed)
+│
+├── config.py               # All hyperparameters and paths
+├── model.py                # 3-layer TunedSNN architecture
+├── dataset.py              # Data loading, preprocessing, augmentation
+├── train.py                # Training pipeline
+├── test.py                 # Inference pipeline
+├── inspect_mat.py          # Utility to inspect raw .mat file contents
+├── requirements.txt        # Python dependencies
+└── REPORT.md               # Full technical report
+```
+
+---
+
+## Setup
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## Usage
+
+### Train a single patient model
+```bash
+python train.py --file S1_A1_E1.mat
+```
+
+### Train all patients sequentially
+```bash
+python train.py --all
+```
+
+### Test a trained model
+```bash
+python test.py --file S21_A1_E2.mat
+```
+
+Outputs saved to `Result/`:
+- `cm_<patient>.png` — Confusion matrix
+- `spike_raster_<patient>.png` — Output-layer spike raster from a sample
+- `training_<patient>.csv` — Per-epoch train/val loss & accuracy
+- `results_summary.csv` — Aggregated accuracy table across all patients
+
+---
+
+## Key Configuration (`config.py`)
+
+| Parameter | Value | Description |
+|---|---|---|
+| `NUM_INPUTS` | 10 | EMG channels |
+| `NUM_OUTPUTS` | 18 | Gesture classes (incl. rest) |
+| `NUM_STEPS` | 100 | Timesteps per window |
+| `HIDDEN_SIZE` | 512 | Neurons per hidden layer |
+| `BETA` | 0.90 | Initial membrane decay (learnable) |
+| `THRESHOLD` | 0.7 | Initial firing threshold (learnable) |
+| `EARLY_STOPPING_PATIENCE` | 15 | Epochs without improvement before stopping |
+
+---
+
+## Architecture
+
+The `TunedSNN` model consists of three hidden Leaky-Integrate-and-Fire (LIF) layers followed by an output LIF layer:
+
+```
+Input [T, B, 10]
+   → FC(10 → 512) → BN → LIF₁ (learn β, θ) → Dropout(0.25)
+   → FC(512 → 512) → BN → LIF₂ (learn β, θ) → Dropout(0.25)
+   → FC(512 → 256) → BN → LIF₃ (learn β, θ) → Dropout(0.25)
+   → FC(256 → 18)  → LIF_out (learn β, θ)
+Output spike counts [T, B, 18] → sum over T → argmax → class
+```
+
+---
+
+## Cross-Repetition Evaluation Protocol
+
+Following the NinaProDB standard:
+- **Train**: Repetitions 1–7
+- **Test**: Repetitions 8+ (held-out)
+
+This ensures the model generalises to unseen repetitions of each gesture.

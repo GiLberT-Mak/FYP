@@ -5,5 +5,7 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"python.defaultInterpreterPath": "C:/Users/FattMak/anaconda3/envs/snn_v2/python.exe"
+	}
 }
