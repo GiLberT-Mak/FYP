@@ -240,10 +240,10 @@ Active accuracy is typically the more meaningful metric for gesture recognition 
 
 | File | Description |
 |---|---|
-| `cm_<patient>.png` | Confusion matrix (18×18, Blues colormap) |
-| `spike_raster_<patient>.png` | Output-layer spike raster (1 sample) |
-| `training_<patient>.csv` | Per-epoch: train/val loss, accuracy, LR |
-| `results_summary.csv` | Overall & active accuracy for every tested patient |
+| `Confusion-Matrices/cm_<patient>.png` | Confusion matrix (18×18, Blues colormap) |
+| `Spike-Rasters/spike_raster_<patient>.png` | Output-layer spike raster (1 sample) |
+| `Training-Records/training_<patient>.csv` | Per-epoch: train/val loss, accuracy, LR |
+| `Summary/results_summary.csv` | Overall & active accuracy for every tested patient |
 
 ### 6.3 Spike Raster Interpretation
 
@@ -255,18 +255,78 @@ The spike raster shows which output neurons fired at which timesteps for a singl
 
 ## 7. Results & Analysis
 
-> Results are populated automatically in `Result/results_summary.csv` after running `test.py`.
+> Results are populated automatically in `Result/Summary/results_summary.csv` after running `test.py`.
 
-### 7.1 Summary Table (Example)
+### 7.1 Cross-Patient Results Table
 
-| Patient File | Overall Acc (%) | Active Acc (%) |
-|---|---|---|
-| S21_A1_E2.mat | — | — |
-| *(run test.py to populate)* | | |
+The following table summarises the performance across all 25 subjects in the NinaProDB dataset.
+
+| Subject ID | Overall Acc (%) | Active Acc (%) |
+|:---|:---|:---|
+| **S1** | 84.42% | 72.61% |
+| **S2** | 84.81% | 78.89% |
+| **S3** | 83.68% | 64.07% |
+| **S4** | 69.68% | 62.22% |
+| **S5** | 71.33% | 57.50% |
+| **S6** | 58.94% | 73.80% |
+| **S7** | 70.19% | 61.14% |
+| **S8** | 52.93% | 59.28% |
+| **S9** | 75.81% | 59.14% |
+| **S10** | 76.98% | 64.61% |
+| **S11** | 81.15% | 71.63% |
+| **S12** | 83.41% | 68.93% |
+| **S13** | 56.05% | 66.00% |
+| **S14** | 83.02% | 72.92% |
+| **S15** | 67.44% | 58.42% |
+| **S16** | 78.45% | 60.69% |
+| **S17** | 75.58% | 67.22% |
+| **S18** | 65.89% | 54.84% |
+| **S19** | 77.05% | 59.28% |
+| **S20** | 64.12% | 68.72% |
+| **S22** | 72.52% | 59.00% |
+| **S23** | 79.08% | 63.02% |
+| **S24** | 72.92% | 59.67% |
+| **S26** | 77.88% | 75.43% |
+| **S27** | 64.57% | 64.86% |
+| **Mean** | **73.12%** | **65.45%** |
+
+### 7.2 Performance Analysis
+
+- **Baseline Comparison**: The mean **Active Accuracy of 65.45%** (excluding the rest class) demonstrates that the SNN has successfully learned to distinguish complex multi-class gesture patterns.
+- **Top Performer**: Subject **S2** achieved the highest active accuracy of **78.89%**, indicating high consistency in EMG signal generation for that subject.
+- **Robustness**: The model maintains an average overall accuracy of **73.12%**, benefitting from the class-balanced validation and weighted loss functions implemented during the "Tuning" phase.
+
+---
+
+## 8. Efficiency & Real-Time Analysis
+
+Using the `analyze.py` tool, the SNN was compared against a theoretically equivalent dense ANN (ReLU-based) of the same architecture.
+
+### 8.1 Synaptic Operations (SynOps) Reduction
+
+Unlike ANNs which perform Multiply-Accumulate (MAC) operations for every connection every timestep, the SNN only performs spike-triggered additions (ADDs).
+
+| Metric | Dense ANN | This SNN (S1) | Reduction |
+|:---|:---|:---|:---|
+| **Operations per window** | 40,294,400 MACs | 9,271,200 SynOps | **4.3×** |
+
+### 8.2 Energy Consumption (Theoretical)
+
+Based on a **45nm CMOS process** model (MAC = 4.6 pJ, ADD = 0.9 pJ):
+
+- **Equivalent ANN Energy**: 185,354 nJ per inference
+- **Tuned SNN Energy**: 10,699 nJ per inference
+- **Performance Gain**: **~17.3× more energy efficient** than a standard ANN.
+
+### 8.3 Real-Time Capability
+
+- **Inference Latency**: ~2.0 ms per 50ms window.
+- **Headroom**: **24.1× faster than real-time**.
+- **Conclusion**: The model is highly suitable for deployment on low-power embedded processors for prosthetic control, as it uses only a small fraction of the available temporal budget.
 
 ### 7.2 Confusion Matrix
 
-Saved per patient to `Result/cm_<patient>.png`. Common patterns to look for:
+Saved per patient to `Result/Confusion-Matrices/cm_<patient>.png`. Common patterns to look for:
 - **Diagonal dominance** → good overall classification
 - **Off-diagonal clusters** → gesture pairs that confuse the model (often biomechanically similar gestures)
 - **Row of errors toward class 0** → model defaults to rest when uncertain
@@ -286,7 +346,7 @@ Typically shallower layers converge to larger $\beta$ (longer memory), while dee
 
 ---
 
-## 8. Improvements Implemented
+## 9. Improvements Implemented
 
 | # | Improvement | File | Impact |
 |---|---|---|---|
@@ -309,7 +369,7 @@ Typically shallower layers converge to larger $\beta$ (longer memory), while dee
 
 ---
 
-## 9. Future Work
+## 10. Future Work
 
 ### 9.1 Architecture
 - **Recurrent LIF (RLIF)**: Replace `snn.Leaky` with `snn.RLeaky` to add lateral recurrent connections. This can capture longer temporal dependencies than feedforward LIF.
@@ -333,7 +393,7 @@ Typically shallower layers converge to larger $\beta$ (longer memory), while dee
 
 ---
 
-## 10. References
+## 11. References
 
 1. Atzori, M. et al. (2014). *Electromyography data for non-invasive naturally-controlled robotic hand prostheses*. **Scientific Data**, 1, 140053. https://doi.org/10.1038/sdata.2014.53
 

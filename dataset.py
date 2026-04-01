@@ -182,9 +182,9 @@ class SingleFileLoader(Dataset):
         full_path     = os.path.join(folder_path, target_filename)
 
         if not os.path.exists(full_path):
-            raise FileNotFoundError(f"❌ ERROR: File not found at {full_path}")
+            raise FileNotFoundError(f" ERROR: File not found at {full_path}")
 
-        print(f"🧐 Loading Test File: {target_filename}")
+        print(f" Loading Test File: {target_filename}")
 
         raw_emg, raw_labels, filled_reps = process_mat_file(full_path, cache_dir=CACHE_DIR)
 
@@ -205,7 +205,7 @@ class SingleFileLoader(Dataset):
                 snippet = raw_emg[i : i + NUM_STEPS, :]
                 self.samples.append((snippet, label))
 
-        print(f"✅ Samples Loaded: {len(self.samples)}")
+        print(f" Samples Loaded: {len(self.samples)}")
 
     def __len__(self):
         return len(self.samples)

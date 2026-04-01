@@ -10,7 +10,12 @@ A per-patient **Spiking Neural Network (SNN)** for classifying hand gestures fro
 FYP/
 ├── Data/                   # All .mat files — train (reps 1–7) & test (reps 8+) are split internally
 ├── Trained_SNN/            # Saved per-patient model weights (.pth)
-├── Result/                 # Outputs: confusion matrices, spike rasters, CSVs
+├── Result/                 # Categorized outputs:
+│   ├── Training-Records/   # Per-epoch training logs (.csv)
+│   ├── Confusion-Matrices/ # Test performance plots (.png)
+│   ├── Spike-Rasters/      # Model firing patterns (.png)
+│   ├── Efficiency-Metrics/ # Power/Real-time analysis plots & CSV
+│   └── Summary/            # Overall accuracy summary table
 ├── .cache/                 # Preprocessed .npz cache (auto-generated, not committed)
 │
 ├── config.py               # All hyperparameters and paths
@@ -51,10 +56,11 @@ python test.py --file S21_A1_E2.mat
 ```
 
 Outputs saved to `Result/`:
-- `cm_<patient>.png` — Confusion matrix
-- `spike_raster_<patient>.png` — Output-layer spike raster from a sample
-- `training_<patient>.csv` — Per-epoch train/val loss & accuracy
-- `results_summary.csv` — Aggregated accuracy table across all patients
+- `Confusion-Matrices/cm_<patient>.png` — Confusion matrix
+- `Spike-Rasters/spike_raster_<patient>.png` — Output-layer spike raster
+- `Training-Records/training_<patient>.csv` — Training logs
+- `Summary/results_summary.csv` — Aggregated accuracy table
+- `Efficiency-Metrics/` — Power and real-time analysis reports (from `analyze.py`)
 
 ---
 

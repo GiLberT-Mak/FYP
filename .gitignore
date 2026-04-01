@@ -1,10 +1,10 @@
-# NinaProDB dataset files — large binaries, do not commit
+# NinaProDB dataset files
 /Data/
 
 # Preprocessed data cache (auto-generated)
 /.cache/
 
-# Trained model weights — large binaries, do not commit
+# Trained model weights
 /Trained_SNN/
 
 # macOS
@@ -15,5 +15,6 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Result charts and CSVs (optional — remove comment to commit results)
-# /Result/
+/tmp/
+/Result/Spike-Rasters/
+/Result/Efficiency-Metrics/

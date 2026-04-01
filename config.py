@@ -5,6 +5,11 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FOLDER  = os.path.join(CURRENT_DIR, 'Data')
 MODEL_DIR   = os.path.join(CURRENT_DIR, 'Trained_SNN')
 RESULT_DIR         = os.path.join(CURRENT_DIR, 'Result')
+TRAIN_RECORD_DIR   = os.path.join(RESULT_DIR, 'Training-Records')
+CM_DIR             = os.path.join(RESULT_DIR, 'Confusion-Matrices')
+RASTER_DIR         = os.path.join(RESULT_DIR, 'Spike-Rasters')
+EFFICIENCY_DIR     = os.path.join(RESULT_DIR, 'Efficiency-Metrics')
+SUMMARY_DIR        = os.path.join(RESULT_DIR, 'Summary')
 CACHE_DIR          = os.path.join(CURRENT_DIR, '.cache')   # Preprocessed .npz cache
 
 NUM_INPUTS  = 10

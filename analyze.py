@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
 from config import (device, MODEL_DIR, DATA_FOLDER, NUM_OUTPUTS,
-                    BATCH_SIZE, RESULT_DIR, NUM_STEPS, NUM_INPUTS, HIDDEN_SIZE)
+                    BATCH_SIZE, EFFICIENCY_DIR, NUM_STEPS, NUM_INPUTS, HIDDEN_SIZE)
 from model import TunedSNN
 from dataset import SingleFileLoader
 
@@ -68,7 +68,8 @@ def plot_spike_activity(firing_pct, base_name):
     fig.patch.set_facecolor('#ffffff')
     plt.tight_layout()
 
-    path = os.path.join(RESULT_DIR, f"spike_activity_{base_name}.png")
+    os.makedirs(EFFICIENCY_DIR, exist_ok=True)
+    path = os.path.join(EFFICIENCY_DIR, f"spike_activity_{base_name}.png")
     plt.savefig(path, dpi=150)
     plt.close()
     return path
@@ -104,7 +105,8 @@ def plot_energy_comparison(energy_ann_nj, energy_snn_nj, energy_ratio, base_name
     fig.patch.set_facecolor('#ffffff')
     plt.tight_layout()
 
-    path = os.path.join(RESULT_DIR, f"energy_comparison_{base_name}.png")
+    os.makedirs(EFFICIENCY_DIR, exist_ok=True)
+    path = os.path.join(EFFICIENCY_DIR, f"energy_comparison_{base_name}.png")
     plt.savefig(path, dpi=150)
     plt.close()
     return path
@@ -120,7 +122,7 @@ def analyze(target_file):
     print(f"  SNN Efficiency Analysis — {target_file}")
     print(f"{'='*W}")
 
-    os.makedirs(RESULT_DIR, exist_ok=True)
+    os.makedirs(EFFICIENCY_DIR, exist_ok=True)
     base_name  = os.path.splitext(target_file)[0]
     model_path = os.path.join(MODEL_DIR, f"snn_nina_trained_{base_name}.pth")
 
@@ -299,7 +301,7 @@ def analyze(target_file):
     print(f"  Energy comparison chart → {p2}")
 
     # ── Save CSV ──────────────────────────────────────────────────────────────
-    csv_path = os.path.join(RESULT_DIR, f"efficiency_{base_name}.csv")
+    csv_path = os.path.join(EFFICIENCY_DIR, f"efficiency_{base_name}.csv")
     with open(csv_path, 'w', newline='', encoding='utf-8') as f:
         w = csv.writer(f)
         w.writerow(['metric', 'value', 'unit'])

@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report
 from torch.utils.data import DataLoader
 
-from config import device, MODEL_DIR, DATA_FOLDER, NUM_OUTPUTS, BATCH_SIZE, RESULT_DIR
+from config import device, MODEL_DIR, DATA_FOLDER, NUM_OUTPUTS, BATCH_SIZE, CM_DIR, RASTER_DIR, SUMMARY_DIR
 from model import TunedSNN
 from dataset import SingleFileLoader
 
@@ -32,7 +32,8 @@ def save_confusion_matrix(all_targets, all_preds, target_file):
     ax.set_title(f"Confusion Matrix — {target_file}", fontsize=14, pad=14)
     plt.tight_layout()
 
-    save_path = os.path.join(RESULT_DIR, f"cm_{os.path.splitext(target_file)[0]}.png")
+    os.makedirs(CM_DIR, exist_ok=True)
+    save_path = os.path.join(CM_DIR, f"cm_{os.path.splitext(target_file)[0]}.png")
     plt.savefig(save_path, dpi=150)
     plt.close()
     print(f"Confusion matrix saved → {save_path}")
@@ -56,9 +57,10 @@ def save_spike_raster(spk_tensor, true_label, pred_label, target_file):
 
     for neuron_idx in range(C):
         spike_times = np.where(spk_np[:, neuron_idx] > 0.5)[0]
-        ax.scatter(spike_times,
-                   np.ones_like(spike_times) * neuron_idx,
-                   s=10, c='steelblue', marker='|', linewidths=1.5)
+        if len(spike_times) > 0:
+            ax.scatter(spike_times,
+                       np.ones_like(spike_times) * neuron_idx,
+                       s=50, c='steelblue', marker='|', linewidths=2)
 
     ax.axhline(y=true_label, color='green',  lw=1.5, ls='--', label=f'True class : {true_label}')
     ax.axhline(y=pred_label, color='crimson', lw=1.5, ls=':',  label=f'Pred class : {pred_label}')
@@ -71,7 +73,8 @@ def save_spike_raster(spk_tensor, true_label, pred_label, target_file):
     ax.set_ylim(-1, C)
     plt.tight_layout()
 
-    save_path = os.path.join(RESULT_DIR,
+    os.makedirs(RASTER_DIR, exist_ok=True)
+    save_path = os.path.join(RASTER_DIR,
                              f"spike_raster_{os.path.splitext(target_file)[0]}.png")
     plt.savefig(save_path, dpi=150)
     plt.close()
@@ -79,8 +82,9 @@ def save_spike_raster(spk_tensor, true_label, pred_label, target_file):
 
 
 def append_summary_csv(target_file, overall_acc, active_acc):
-    """Append this patient's summary to Result/results_summary.csv."""
-    summary_path = os.path.join(RESULT_DIR, "results_summary.csv")
+    """Append this patient's summary to Result/Summary/results_summary.csv."""
+    os.makedirs(SUMMARY_DIR, exist_ok=True)
+    summary_path = os.path.join(SUMMARY_DIR, "results_summary.csv")
     file_exists  = os.path.exists(summary_path)
 
     with open(summary_path, 'a', newline='', encoding='utf-8') as f:
@@ -98,7 +102,6 @@ def append_summary_csv(target_file, overall_acc, active_acc):
 
 def run_test(target_file):
     print(f"Running on: {device}")
-    os.makedirs(RESULT_DIR, exist_ok=True)
 
     base_name       = os.path.splitext(target_file)[0]
     model_save_path = os.path.join(MODEL_DIR, f"snn_nina_trained_{base_name}.pth")
@@ -143,11 +146,16 @@ def run_test(target_file):
             all_preds.extend(pred.cpu().numpy())
             all_targets.extend(targets.cpu().numpy())
 
-            # Capture first sample of first batch for spike raster
-            if spike_sample is None:
-                spike_sample = (spk_out[:, 0, :],           # [T, C]
-                                int(targets[0].item()),
-                                int(pred[0].item()))
+            # Capture a sample for spike raster (prefer an active gesture if possible)
+            if spike_sample is None or spike_sample[1] == 0:
+                for b in range(targets.size(0)):
+                    lbl = int(targets[b].item())
+                    if lbl > 0: # Found a gesture!
+                        spike_sample = (spk_out[:, b, :], lbl, int(pred[b].item()))
+                        break
+                # Fallback to the first sample if no active gestures in this batch yet
+                if spike_sample is None:
+                    spike_sample = (spk_out[:, 0, :], int(targets[0].item()), int(pred[0].item()))
 
     all_preds   = np.array(all_preds)
     all_targets = np.array(all_targets)

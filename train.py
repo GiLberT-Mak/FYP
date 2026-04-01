@@ -10,7 +10,7 @@ import numpy as np
 from collections import Counter
 from sklearn.model_selection import StratifiedShuffleSplit
 
-from config import (device, DATA_FOLDER, MODEL_DIR, RESULT_DIR,
+from config import (device, DATA_FOLDER, MODEL_DIR, TRAIN_RECORD_DIR,
                     BATCH_SIZE, NUM_OUTPUTS, NUM_EPOCHS, EARLY_STOPPING_PATIENCE)
 from model import TunedSNN
 from dataset import LoadDataset
@@ -66,12 +66,12 @@ def compute_class_weights(dataset, num_classes, device):
 def train_single_model(target_filename):
     print(f"Running on: {device}")
 
-    os.makedirs(MODEL_DIR,   exist_ok=True)
-    os.makedirs(RESULT_DIR,  exist_ok=True)
+    os.makedirs(MODEL_DIR,        exist_ok=True)
+    os.makedirs(TRAIN_RECORD_DIR, exist_ok=True)
 
     base_name        = os.path.splitext(target_filename)[0]
-    model_save_path  = os.path.join(MODEL_DIR,  f"snn_nina_trained_{base_name}.pth")
-    csv_path         = os.path.join(RESULT_DIR, f"training_{base_name}.csv")
+    model_save_path  = os.path.join(MODEL_DIR,       f"snn_nina_trained_{base_name}.pth")
+    csv_path         = os.path.join(TRAIN_RECORD_DIR, f"training_{base_name}.csv")
 
     # ── Dataset ───────────────────────────────────────────────
     full_dataset = LoadDataset(DATA_FOLDER, is_training=True,
