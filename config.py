@@ -25,7 +25,7 @@ BETA      = 0.90   # Initial membrane decay (learnable per-layer)
 
 # Training hyper-parameters
 NUM_EPOCHS              = 101
-EARLY_STOPPING_PATIENCE = 15   # Stop if val acc doesn't improve for this many epochs
+EARLY_STOPPING_PATIENCE = 20   # Stop if val acc doesn't improve for this many epochs
 
 if torch.cuda.is_available():
     device = torch.device("cuda")

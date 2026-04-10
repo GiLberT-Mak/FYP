@@ -85,7 +85,7 @@ class LoadDataset(Dataset):
 
     Args:
         folder_path     : Folder containing .mat files.
-        is_training     : If True, uses a stride of 50; else stride = NUM_STEPS.
+        is_training     : If True, uses a stride of 10; else stride = NUM_STEPS.
         target_filename : If given, load only this single file.
         augment         : If True, apply on-the-fly data augmentation in __getitem__.
     """
@@ -113,7 +113,7 @@ class LoadDataset(Dataset):
                 self.raw_labels_list.append(raw_labels)
 
                 total_len = raw_emg.shape[0]
-                stride    = 50 if is_training else NUM_STEPS
+                stride    = 10 if is_training else NUM_STEPS
 
                 for i in range(0, total_len - NUM_STEPS, stride):
                     rep_window = filled_reps[i : i + NUM_STEPS]

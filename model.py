@@ -13,7 +13,7 @@ class TunedSNN(nn.Module):
       - Fast-sigmoid surrogate gradient for backprop through spikes
     """
 
-    def __init__(self, layer_sizes=(512, 128, 128)):
+    def __init__(self, layer_sizes=(256, 256, 128)):
         super().__init__()
         spike_grad = surrogate.fast_sigmoid(slope=SLOPE)
 
