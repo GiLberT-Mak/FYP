@@ -124,18 +124,40 @@ Preprocessing (`.mat` loading, forward-fill, normalisation) is cached to `.npz` 
 
 ## 4. Model Architecture
 
-### 4.1 TunedSNN
+### 4.1 TunedSNN Architecture Evolution
 
-```
+Over the course of the project, a hyperparameter grid search was conducted to drastically reduce latency and computational cost while preserving high accuracy. The model transitioned from a heavy baseline to a high-speed optimized configuration utilising a non-spiking voltage readout.
+
+#### Linear SNN
+```text
 Input signal: [T=100, B, C=10]
 
 Layer 1:  Linear(10 → 512)  → BatchNorm1d(512) → LIF₁(β₁, θ₁) → Dropout(0.25)
 Layer 2:  Linear(512 → 512) → BatchNorm1d(512) → LIF₂(β₂, θ₂) → Dropout(0.25)
 Layer 3:  Linear(512 → 256) → BatchNorm1d(256) → LIF₃(β₃, θ₃) → Dropout(0.25)
-Output:   Linear(256 → 18)  → LIF_out(β₄, θ₄)
+Output:   Linear(256 → 18)  → LIF_out(β₄, θ₄) (Spiking)
 
 Classification: argmax( Σ_t spk_out[t] )
 ```
+
+#### Linear SNN with non-spiking output
+```text
+Input signal: [T=50, B, C=10]
+
+Layer 1:  Linear(10 → 512)  → BatchNorm1d(512) → LIF₁(β₁, θ₁) → Dropout(0.25)
+Layer 2:  Linear(512 → 128) → BatchNorm1d(128) → LIF₂(β₂, θ₂) → Dropout(0.25)
+Layer 3:  Linear(128 → 128) → BatchNorm1d(128) → LIF₃(β₃, θ₃) → Dropout(0.25)
+Output:   Linear(128 → 18)  → LIF_out(β₄, None) (Non-Spiking Membrane Integrator)
+
+Classification: argmax( Mean_t mem_out[t] )
+```
+
+| Metric | Linear SNN | Linear SNN with non-spiking output | Improvement |
+| :--- | :--- | :--- | :--- |
+| **Temporal Window** | 100 timesteps | 50 timesteps | **50% faster signal sampling** |
+| **Network Density** | 512 → 512 → 256 | 512 → 128 → 128 | **Massive parameter reduction** |
+| **Output Type** | Discrete Spikes | Continuous Voltage | **Higher mathematical precision** |
+| **Inference Latency** | ~68.8 ms | ~37.4 ms | **~45% absolute speedup** |
 
 ### 4.2 Leaky Integrate-and-Fire Neuron
 

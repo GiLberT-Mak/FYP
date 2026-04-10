@@ -13,52 +13,54 @@ class TunedSNN(nn.Module):
       - Fast-sigmoid surrogate gradient for backprop through spikes
     """
 
-    def __init__(self):
+    def __init__(self, layer_sizes=(512, 128, 128)):
         super().__init__()
         spike_grad = surrogate.fast_sigmoid(slope=SLOPE)
 
         # ── Layer 1 ──────────────────────────────────────────────
-        self.fc1  = nn.Linear(NUM_INPUTS, HIDDEN_SIZE)
-        self.bn1  = nn.BatchNorm1d(HIDDEN_SIZE)
+        self.fc1  = nn.Linear(NUM_INPUTS, layer_sizes[0])
+        self.bn1  = nn.BatchNorm1d(layer_sizes[0])
         self.lif1 = snn.Leaky(beta=BETA, threshold=THRESHOLD,
                                spike_grad=spike_grad,
                                learn_beta=True, learn_threshold=True)
         self.drop1 = nn.Dropout(0.25)
 
         # ── Layer 2 ──────────────────────────────────────────────
-        self.fc2  = nn.Linear(HIDDEN_SIZE, HIDDEN_SIZE)
-        self.bn2  = nn.BatchNorm1d(HIDDEN_SIZE)
+        self.fc2  = nn.Linear(layer_sizes[0], layer_sizes[1])
+        self.bn2  = nn.BatchNorm1d(layer_sizes[1])
         self.lif2 = snn.Leaky(beta=BETA, threshold=THRESHOLD,
                                spike_grad=spike_grad,
                                learn_beta=True, learn_threshold=True)
         self.drop2 = nn.Dropout(0.25)
 
         # ── Layer 3 (new) ─────────────────────────────────────────
-        self.fc3  = nn.Linear(HIDDEN_SIZE, HIDDEN_SIZE // 2)
-        self.bn3  = nn.BatchNorm1d(HIDDEN_SIZE // 2)
+        self.fc3  = nn.Linear(layer_sizes[1], layer_sizes[2])
+        self.bn3  = nn.BatchNorm1d(layer_sizes[2])
         self.lif3 = snn.Leaky(beta=BETA, threshold=THRESHOLD,
                                spike_grad=spike_grad,
                                learn_beta=True, learn_threshold=True)
         self.drop3 = nn.Dropout(0.25)
 
         # ── Output layer ─────────────────────────────────────────
-        self.fc_out  = nn.Linear(HIDDEN_SIZE // 2, NUM_OUTPUTS)
-        self.lif_out = snn.Leaky(beta=BETA, threshold=THRESHOLD,
-                                  spike_grad=spike_grad,
-                                  learn_beta=True, learn_threshold=True)
+        self.fc_out  = nn.Linear(layer_sizes[2], NUM_OUTPUTS)
+        self.lif_out = snn.Leaky(beta=BETA, reset_mechanism="none",
+                                  learn_beta=True)
 
-    def forward(self, x):
+    def forward(self, x, return_spikes=False):
         """
         Args:
             x: [Time, Batch, Channels]
+            return_spikes: if True, returns (mem_out_rec, spk3_rec) for visualization
         Returns:
-            spk_out_rec: [Time, Batch, NUM_OUTPUTS]  (spike train at output layer)
+            mem_out_rec: [Time, Batch, NUM_OUTPUTS] (membrane potential at output layer)
         """
         mem1    = self.lif1.init_leaky()
         mem2    = self.lif2.init_leaky()
         mem3    = self.lif3.init_leaky()
         mem_out = self.lif_out.init_leaky()
-        spk_out_rec = []
+        mem_out_rec = []
+        if return_spikes:
+            spk3_rec = []
 
         for step in range(x.size(0)):
             # Layer 1
@@ -78,7 +80,11 @@ class TunedSNN(nn.Module):
 
             # Output
             cur_out = self.fc_out(spk3)
-            spk_out, mem_out = self.lif_out(cur_out, mem_out)
-            spk_out_rec.append(spk_out)
+            _, mem_out = self.lif_out(cur_out, mem_out)
+            mem_out_rec.append(mem_out)
+            if return_spikes:
+                spk3_rec.append(spk3)
 
-        return torch.stack(spk_out_rec, dim=0)
+        if return_spikes:
+            return torch.stack(mem_out_rec, dim=0), torch.stack(spk3_rec, dim=0)
+        return torch.stack(mem_out_rec, dim=0)

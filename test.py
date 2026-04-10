@@ -66,7 +66,7 @@ def save_spike_raster(spk_tensor, true_label, pred_label, target_file):
     ax.axhline(y=pred_label, color='crimson', lw=1.5, ls=':',  label=f'Pred class : {pred_label}')
     ax.set_xlabel("Timestep", fontsize=12)
     ax.set_ylabel("Output Neuron Index", fontsize=12)
-    ax.set_title(f"Output Spike Raster — {target_file}  "
+    ax.set_title(f"Hidden Layer 3 Spike Raster — {target_file}  "
                  f"[True: {true_label} | Pred: {pred_label}]", fontsize=13)
     ax.legend(loc='upper right')
     ax.set_xlim(0, T)
@@ -140,22 +140,23 @@ def run_test(target_file):
             data, targets = data.to(device), targets.to(device)
             data          = data.permute(1, 0, 2)           # [Time, Batch, Ch]
 
-            spk_out = net(data)                              # [T, B, C]
-            _, pred = torch.max(spk_out.sum(dim=0), 1)
+            mem_out, hidden_spk = net(data, return_spikes=True)
+            _, pred = torch.max(mem_out.mean(dim=0), 1)
 
             all_preds.extend(pred.cpu().numpy())
             all_targets.extend(targets.cpu().numpy())
 
             # Capture a sample for spike raster (prefer an active gesture if possible)
+            # We plot the first 50 hidden neurons since the output layer no longer spikes
             if spike_sample is None or spike_sample[1] == 0:
                 for b in range(targets.size(0)):
                     lbl = int(targets[b].item())
                     if lbl > 0: # Found a gesture!
-                        spike_sample = (spk_out[:, b, :], lbl, int(pred[b].item()))
+                        spike_sample = (hidden_spk[:, b, :50], lbl, int(pred[b].item()))
                         break
                 # Fallback to the first sample if no active gestures in this batch yet
                 if spike_sample is None:
-                    spike_sample = (spk_out[:, 0, :], int(targets[0].item()), int(pred[0].item()))
+                    spike_sample = (hidden_spk[:, 0, :50], int(targets[0].item()), int(pred[0].item()))
 
     all_preds   = np.array(all_preds)
     all_targets = np.array(all_targets)

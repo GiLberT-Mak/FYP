@@ -14,7 +14,7 @@ CACHE_DIR          = os.path.join(CURRENT_DIR, '.cache')   # Preprocessed .npz c
 
 NUM_INPUTS  = 10
 NUM_OUTPUTS = 18
-NUM_STEPS   = 100   # Standardized window size (timesteps)
+NUM_STEPS   = 50    # Standardized window size (timesteps)
 BATCH_SIZE  = 128
 HIDDEN_SIZE = 512
 

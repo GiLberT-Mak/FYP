@@ -125,18 +125,18 @@ def train_single_model(target_filename):
 
                 if use_amp:
                     with torch.amp.autocast('cuda'):
-                        spk_rec = net(data)
-                        loss    = loss_fn(spk_rec.sum(dim=0), targets)
+                        mem_rec = net(data)
+                        loss    = loss_fn(mem_rec.mean(dim=0), targets)
                     scaler.scale(loss).backward()
                     scaler.step(optimizer)
                     scaler.update()
                 else:
-                    spk_rec = net(data)
-                    loss    = loss_fn(spk_rec.sum(dim=0), targets)
+                    mem_rec = net(data)
+                    loss    = loss_fn(mem_rec.mean(dim=0), targets)
                     loss.backward()
                     optimizer.step()
 
-                _, pred   = torch.max(spk_rec.sum(dim=0), 1)
+                _, pred   = torch.max(mem_rec.mean(dim=0), 1)
                 acc        = (pred == targets).float().mean() * 100
                 batch_loss += loss.item()
                 batch_acc  += acc.item()
@@ -156,10 +156,10 @@ def train_single_model(target_filename):
                     data, targets = data.to(device), targets.to(device)
                     data          = data.permute(1, 0, 2)
 
-                    spk_rec = net(data)
-                    loss    = loss_fn(spk_rec.sum(dim=0), targets)
+                    mem_rec = net(data)
+                    loss    = loss_fn(mem_rec.mean(dim=0), targets)
 
-                    _, pred = torch.max(spk_rec.sum(dim=0), 1)
+                    _, pred = torch.max(mem_rec.mean(dim=0), 1)
                     acc     = (pred == targets).float().mean() * 100
 
                     val_loss += loss.item()
