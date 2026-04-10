@@ -5,7 +5,7 @@
 /.cache/
 
 # Trained model weights
-/Trained_SNN/
+
 
 # macOS
 .DS_Store

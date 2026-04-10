@@ -3,6 +3,7 @@ import os
 import argparse
 import sys
 import csv
+import time
 
 import numpy as np
 import matplotlib
@@ -81,7 +82,7 @@ def save_spike_raster(spk_tensor, true_label, pred_label, target_file):
     print(f"Spike raster saved → {save_path}")
 
 
-def append_summary_csv(target_file, overall_acc, active_acc):
+def append_summary_csv(target_file, overall_acc, active_acc, latency_ms):
     """Append this patient's summary to Result/Summary/results_summary.csv."""
     os.makedirs(SUMMARY_DIR, exist_ok=True)
     summary_path = os.path.join(SUMMARY_DIR, "results_summary.csv")
@@ -90,8 +91,8 @@ def append_summary_csv(target_file, overall_acc, active_acc):
     with open(summary_path, 'a', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         if not file_exists:
-            writer.writerow(['patient_file', 'overall_acc_%', 'active_acc_%'])
-        writer.writerow([target_file, f"{overall_acc:.2f}", f"{active_acc:.2f}"])
+            writer.writerow(['patient_file', 'overall_acc_%', 'active_acc_%', 'latency_ms_per_sample'])
+        writer.writerow([target_file, f"{overall_acc:.2f}", f"{active_acc:.2f}", f"{latency_ms:.4f}"])
 
     print(f"Summary appended → {summary_path}")
 
@@ -134,13 +135,28 @@ def run_test(target_file):
     all_preds   = []
     all_targets = []
     spike_sample = None    # (spk_tensor [T,C], true_label, pred_label) for raster
+    total_infer_time = 0.0
+    total_infer_samples = 0
 
     with torch.no_grad():
         for i, (data, targets) in enumerate(loader):
             data, targets = data.to(device), targets.to(device)
             data          = data.permute(1, 0, 2)           # [Time, Batch, Ch]
+            batch_sz      = targets.size(0)
+
+            # ── Timed forward pass ─────────────────────
+            if device.type == 'cuda':
+                torch.cuda.synchronize()
+            t0 = time.perf_counter()
 
             mem_out, hidden_spk = net(data, return_spikes=True)
+
+            if device.type == 'cuda':
+                torch.cuda.synchronize()
+            total_infer_time += time.perf_counter() - t0
+            total_infer_samples += batch_sz
+            # ───────────────────────────────────────────
+
             _, pred = torch.max(mem_out.mean(dim=0), 1)
 
             all_preds.extend(pred.cpu().numpy())
@@ -174,6 +190,11 @@ def run_test(target_file):
     overall_acc = np.mean(all_preds == all_targets) * 100
     print(f"Overall Accuracy (incl. Rest) on '{target_file}': {overall_acc:.2f}%")
 
+    # ── Latency report ─────────────────────────────────────
+    avg_lat_ms = (total_infer_time / total_infer_samples * 1000) if total_infer_samples > 0 else 0.0
+    lat_status = '✓' if avg_lat_ms < 0.05 else '✗'
+    print(f"\n⚡ Avg Inference Latency: {avg_lat_ms:.4f} ms/sample  [{lat_status} target <0.05 ms]")
+
     # ── Per-class classification report ───────────────────────
     print(f"\n Classification Report — {target_file}")
     print(classification_report(
@@ -184,7 +205,7 @@ def run_test(target_file):
 
     # ── Save results ──────────────────────────────────────────
     save_confusion_matrix(all_targets, all_preds, target_file)
-    append_summary_csv(target_file, overall_acc, active_acc)
+    append_summary_csv(target_file, overall_acc, active_acc, avg_lat_ms)
 
     if spike_sample is not None:
         spk_t, true_lbl, pred_lbl = spike_sample

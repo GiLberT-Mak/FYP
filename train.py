@@ -6,9 +6,11 @@ import os
 import glob
 import argparse
 import csv
+import time
 import numpy as np
 from collections import Counter
 from sklearn.model_selection import StratifiedShuffleSplit
+import re
 
 from config import (device, DATA_FOLDER, MODEL_DIR, TRAIN_RECORD_DIR,
                     BATCH_SIZE, NUM_OUTPUTS, NUM_EPOCHS, EARLY_STOPPING_PATIENCE)
@@ -21,6 +23,14 @@ sys.stdout.reconfigure(encoding='utf-8')
 # ─────────────────────────────────────────────────────────────
 # Utilities
 # ─────────────────────────────────────────────────────────────
+
+def natural_sort_key(s):
+    """
+    Sort strings containing numbers in numerical order (1, 2, 10 instead of 1, 10, 2).
+    """
+    return [int(text) if text.isdigit() else text.lower()
+            for text in re.split('([0-9]+)', s)]
+
 
 def stratified_split(dataset, val_ratio=0.2, seed=42):
     """
@@ -109,7 +119,7 @@ def train_single_model(target_filename):
 
     with open(csv_path, 'w', newline='', encoding='utf-8') as csv_file:
         writer = csv.writer(csv_file)
-        writer.writerow(['epoch', 'train_loss', 'train_acc', 'val_loss', 'val_acc', 'lr'])
+        writer.writerow(['epoch', 'train_loss', 'train_acc', 'val_loss', 'val_acc', 'lr', 'val_lat_ms'])
 
         for epoch in range(NUM_EPOCHS):
 
@@ -150,13 +160,28 @@ def train_single_model(target_filename):
             # ── Validate ───────────────────────────────────────
             net.eval()
             val_acc, val_loss, val_batches = 0.0, 0.0, 0
+            val_total_time   = 0.0   # total inference wall-time (seconds)
+            val_total_samples = 0
 
             with torch.no_grad():
                 for data, targets in val_loader:
                     data, targets = data.to(device), targets.to(device)
                     data          = data.permute(1, 0, 2)
+                    batch_sz      = targets.size(0)
+
+                    # ── Timed forward pass ─────────────────────
+                    if device.type == 'cuda':
+                        torch.cuda.synchronize()
+                    t0 = time.perf_counter()
 
                     mem_rec = net(data)
+
+                    if device.type == 'cuda':
+                        torch.cuda.synchronize()
+                    val_total_time += time.perf_counter() - t0
+                    val_total_samples += batch_sz
+                    # ───────────────────────────────────────────
+
                     loss    = loss_fn(mem_rec.mean(dim=0), targets)
 
                     _, pred = torch.max(mem_rec.mean(dim=0), 1)
@@ -172,11 +197,14 @@ def train_single_model(target_filename):
                 avg_val_loss = val_loss    / val_batches
                 avg_val_acc  = val_acc     / val_batches
                 current_lr   = optimizer.param_groups[0]['lr']
+                avg_lat_ms   = (val_total_time / val_total_samples * 1000) if val_total_samples > 0 else 0.0
 
+                lat_status = '✓' if avg_lat_ms < 0.05 else '✗'
                 print(
                     f"Epoch {epoch:3d} | "
                     f"Train Loss: {avg_tr_loss:.4f} | Train Acc: {avg_tr_acc:6.2f}% | "
                     f"Val Loss: {avg_val_loss:.4f} | Val Acc: {avg_val_acc:6.2f}% | "
+                    f"Latency: {avg_lat_ms:.4f} ms/sample [{lat_status}] | "
                     f"LR: {current_lr:.6f}"
                 )
 
@@ -184,7 +212,7 @@ def train_single_model(target_filename):
                 writer.writerow([epoch,
                                   f"{avg_tr_loss:.4f}", f"{avg_tr_acc:.2f}",
                                   f"{avg_val_loss:.4f}", f"{avg_val_acc:.2f}",
-                                  f"{current_lr:.6f}"])
+                                  f"{current_lr:.6f}", f"{avg_lat_ms:.4f}"])
                 csv_file.flush()
 
                 # Best model checkpoint + early stopping
@@ -221,7 +249,7 @@ if __name__ == "__main__":
         files = glob.glob(os.path.join(DATA_FOLDER, "*.mat"))
         if not files:
             print(" No .mat files found in Data/ directory.")
-        for f_path in sorted(files):
+        for f_path in sorted(files, key=natural_sort_key):
             filename = os.path.basename(f_path)
             print(f"\n\n{'='*60}")
             print(f" Starting training for patient: {filename}")
