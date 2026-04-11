@@ -4,6 +4,8 @@ import argparse
 import sys
 import csv
 import time
+import glob
+import re
 
 import numpy as np
 import matplotlib
@@ -12,6 +14,12 @@ import matplotlib.pyplot as plt
 
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report
 from torch.utils.data import DataLoader
+
+
+def natural_sort_key(s):
+    """Sort strings containing numbers in numerical order."""
+    return [int(text) if text.isdigit() else text.lower()
+            for text in re.split('([0-9]+)', s)]
 
 from config import device, MODEL_DIR, DATA_FOLDER, NUM_OUTPUTS, BATCH_SIZE, CM_DIR, RASTER_DIR, SUMMARY_DIR
 from model import TunedSNN
@@ -218,8 +226,32 @@ def run_test(target_file):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test a trained SNN model on NinaProDB data")
-    parser.add_argument('--file', type=str, default='S21_A1_E2.mat',
-                        help='Target .mat file in Test_Data/ (default: S21_A1_E2.mat)')
+    parser.add_argument('--file', type=str,
+                        help='Target .mat file in Data/ to test on a specific patient.')
+    parser.add_argument('--all', action='store_true',
+                        help='Test all patients that have a trained model in Trained_SNN/.')
     args = parser.parse_args()
 
-    run_test(args.file)
+    if args.all:
+        # Find all trained models and derive the .mat filenames
+        model_files = glob.glob(os.path.join(MODEL_DIR, "snn_nina_trained_*.pth"))
+        if not model_files:
+            print(" No trained models found in Trained_SNN/ directory.")
+        else:
+            mat_names = []
+            for mf in model_files:
+                # snn_nina_trained_S1_A1_E2.pth -> S1_A1_E2.mat
+                base = os.path.basename(mf).replace("snn_nina_trained_", "").replace(".pth", ".mat")
+                mat_names.append(base)
+
+            for mat_file in sorted(mat_names, key=natural_sort_key):
+                print(f"\n\n{'='*60}")
+                print(f" Testing patient: {mat_file}")
+                print(f"{'='*60}")
+                run_test(mat_file)
+
+    elif args.file:
+        run_test(args.file)
+
+    else:
+        print(" Please provide exactly one of `--file <filename>` or `--all`")

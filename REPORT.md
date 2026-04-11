@@ -98,9 +98,9 @@ Rest periods in the raw data have `repetition = 0`. To correctly assign rest win
 
 | Parameter | Value |
 |---|---|
-| Window length (`NUM_STEPS`) | 100 samples |
-| Training stride | 50 samples (50% overlap) |
-| Test stride | 100 samples (non-overlapping) |
+| Window length (`NUM_STEPS`) | 50 samples |
+| Training stride | 10 samples (80% overlap) |
+| Test stride | 50 samples (non-overlapping) |
 
 Each window is labelled by the **majority class** within that window.
 
@@ -144,9 +144,9 @@ Classification: argmax( Σ_t spk_out[t] )
 ```text
 Input signal: [T=50, B, C=10]
 
-Layer 1:  Linear(10 → 512)  → BatchNorm1d(512) → LIF₁(β₁, θ₁) → Dropout(0.25)
-Layer 2:  Linear(512 → 128) → BatchNorm1d(128) → LIF₂(β₂, θ₂) → Dropout(0.25)
-Layer 3:  Linear(128 → 128) → BatchNorm1d(128) → LIF₃(β₃, θ₃) → Dropout(0.25)
+Layer 1:  Linear(10 → 256)  → BatchNorm1d(256) → LIF₁(β₁, θ₁) → Dropout(0.25)
+Layer 2:  Linear(256 → 256) → BatchNorm1d(256) → LIF₂(β₂, θ₂) → Dropout(0.25)
+Layer 3:  Linear(256 → 128) → BatchNorm1d(128) → LIF₃(β₃, θ₃) → Dropout(0.25)
 Output:   Linear(128 → 18)  → LIF_out(β₄, None) (Non-Spiking Membrane Integrator)
 
 Classification: argmax( Mean_t mem_out[t] )
@@ -155,9 +155,9 @@ Classification: argmax( Mean_t mem_out[t] )
 | Metric | Linear SNN | Linear SNN with non-spiking output | Improvement |
 | :--- | :--- | :--- | :--- |
 | **Temporal Window** | 100 timesteps | 50 timesteps | **50% faster signal sampling** |
-| **Network Density** | 512 → 512 → 256 | 512 → 128 → 128 | **Massive parameter reduction** |
+| **Network Density** | 512 → 512 → 256 | 256 → 256 → 128 | **Massive parameter reduction** |
 | **Output Type** | Discrete Spikes | Continuous Voltage | **Higher mathematical precision** |
-| **Inference Latency** | ~68.8 ms | ~37.4 ms | **~45% absolute speedup** |
+| **Inference Latency** | ~68.8 ms | ~16.5 ms | **~76% absolute speedup** |
 
 ### 4.2 Leaky Integrate-and-Fire Neuron
 
@@ -318,38 +318,38 @@ The following table will summarise the performance of the high-speed optimized c
 
 | Subject ID | Overall Acc (%) | Active Acc (%) |
 |:---|:---|:---|
-| **S1** | - | - |
-| **S2** | - | - |
-| **S3** | - | - |
-| **S4** | - | - |
-| **S5** | - | - |
-| **S6** | - | - |
-| **S7** | - | - |
-| **S8** | - | - |
-| **S9** | - | - |
-| **S10** | - | - |
-| **S11** | - | - |
-| **S12** | - | - |
-| **S13** | - | - |
-| **S14** | - | - |
-| **S15** | - | - |
-| **S16** | - | - |
-| **S17** | - | - |
-| **S18** | - | - |
-| **S19** | - | - |
-| **S20** | - | - |
-| **S22** | - | - |
-| **S23** | - | - |
-| **S24** | - | - |
-| **S26** | - | - |
-| **S27** | - | - |
-| **Mean** | **-** | **-** |
+| **S1** | 82.13% | 74.76% |
+| **S2** | 78.62% | 74.73% |
+| **S3** | 79.67% | 73.31% |
+| **S4** | 74.39% | 64.54% |
+| **S5** | 58.74% | 67.08% |
+| **S6** | 65.28% | 75.93% |
+| **S7** | 74.39% | 67.97% |
+| **S8** | 79.74% | 72.73% |
+| **S9** | 73.37% | 70.13% |
+| **S10** | 76.69% | 71.27% |
+| **S11** | 75.41% | 70.47% |
+| **S12** | 77.71% | 72.52% |
+| **S13** | 78.90% | 66.78% |
+| **S14** | 79.65% | 71.76% |
+| **S15** | 76.01% | 60.32% |
+| **S16** | 79.21% | 58.45% |
+| **S17** | 78.25% | 68.66% |
+| **S18** | 58.35% | 57.58% |
+| **S19** | 70.79% | 63.66% |
+| **S20** | 80.85% | 65.12% |
+| **S22** | 77.37% | 75.13% |
+| **S23** | 71.02% | 73.83% |
+| **S24** | 81.71% | 72.33% |
+| **S26** | 82.28% | 82.75% |
+| **S27** | 62.15% | 63.61% |
+| **Mean** | **74.11%** | **69.81%** |
 
 ### 7.3 Performance Analysis
 
-- **Baseline Comparison**: The mean **Active Accuracy of 65.45%** (excluding the rest class) demonstrates that the SNN has successfully learned to distinguish complex multi-class gesture patterns.
-- **Top Performer**: Subject **S2** achieved the highest active accuracy of **78.89%**, indicating high consistency in EMG signal generation for that subject.
-- **Robustness**: The model maintains an average overall accuracy of **73.12%**, benefitting from the class-balanced validation and weighted loss functions implemented during the "Tuning" phase.
+- **Baseline Comparison**: The mean **Active Accuracy of 69.81%** (excluding the rest class) demonstrates a significant improvement over the historical baseline (65.45%), despite a smaller network and shorter window.
+- **Top Performer**: Subject **S26** achieved the highest active accuracy of **82.75%**, followed by S6 at 75.93%.
+- **Robustness**: The model maintains an average overall accuracy of **74.11%**, showing that the non-spiking output integration provides more stable classification gradients.
 
 ---
 
