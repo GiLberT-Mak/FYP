@@ -15,7 +15,7 @@ CACHE_DIR          = os.path.join(CURRENT_DIR, '.cache')   # Preprocessed .npz c
 NUM_INPUTS  = 10
 NUM_OUTPUTS = 18
 NUM_STEPS   = 50    # Standardized window size (timesteps)
-BATCH_SIZE  = 128
+BATCH_SIZE  = 2048
 HIDDEN_SIZE = 512
 
 # SNN neuron parameters

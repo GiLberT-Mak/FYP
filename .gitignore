@@ -5,8 +5,15 @@
 /.cache/
 
 # Trained model weights
+Trained_SNN/
+Trained_CNN/
 
-
+# Training logs and reports
+Result/Training-Records/
+Result/Confusion-Matrices/
+Result/Spike-Rasters/
+Result/Efficiency-Metrics/
+# Keep Result/Summary/ as it contains the final benchmarking statistics
 # macOS
 .DS_Store
 

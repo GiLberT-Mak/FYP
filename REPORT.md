@@ -381,15 +381,16 @@ Based on a **45nm CMOS process** model (MAC = 4.6 pJ, ADD = 0.9 pJ):
 
 ### 8.4 State-of-the-Art Baseline: 1D-CNN Comparison
 
-To rigorously evaluate the Spiking Neural Network, its performance is theoretically benchmarked against a standard One-Dimensional Convolutional Neural Network (1D-CNN)—the current state-of-the-art architecture for processing time-series biological signals like sEMG.
+To rigorously evaluate the Spiking Neural Network, its performance was benchmarked against a **Mirror 1D-CNN** trained on the same data pipeline across all 25 subjects in the NinaProDB dataset.
 
-| Metric | 1D-CNN | Linear SNN (Optimised) | Trade-off Analysis |
+| Metric (Mean, 25 Subjects) | Mirror 1D-CNN (Baseline) | Linear SNN (Our Model) | Comparison |
 |:---|:---|:---|:---|
-| **Accuracy Ceiling** | **~80-84%** | ~73% (Mean) | 1D-CNNs achieve higher gross accuracy due to aggressive spatial-temporal feature extraction, but the SNN remains highly competitive within ~5-10%. |
-| **Inference Latency** | **< 0.1 ms** | ~0.65 - 1.0 ms | 1D-CNNs unroll the temporal dimension instantly via parallel matrix multiplication. The SNN's sequential timestep loop is slightly slower, but sub-1ms remains more than fast enough for seamless human prosthetic interaction (<< 300ms perception threshold). |
-| **Power Consumption** | Floating-point MACs | **Sparse Integer ADDs** | The 1D-CNN relies entirely on power-heavy Multiply-Accumulate (MAC) operations. The SNN fundamentally bypasses this, relying almost exclusively on discrete binary spikes and lightweight Accumulate-only operations (SynOps), yielding a ~17× mathematical energy reduction. |
+| **Active Accuracy** | **73.82%** | 69.81% | The SNN achieves competitive accuracy within **~4%** of the CNN counterpart. |
+| **Overall Accuracy** | **79.04%** | 74.11% | Consistent performance across both architectures. |
+| **Inference Latency** | **0.017 ms/sample** | 0.33 ms/sample | The CNN is ~20× faster on GPU (MPS) hardware due to temporal parallelism. |
+| **Power Consumption** | Floating-point MACs | **Sparse Integer ADDs** | The SNN offers a theoretical **~17.3× energy reduction** by replacing MACs with spike-driven additions. |
 
-**Conclusion:** While 1D-CNNs remain the absolute leaders in pure predictive accuracy and parallelized GPU inference speed, they are computationally oppressive for edge devices. Moving to the Linear SNN sacrifices a small accuracy margin in exchange for revolutionary power efficiency, making the SNN substantially more viable for embedded, battery-limited prosthetic hardware.
+**Conclusion:** The Mirror CNN provides a high-performance upper bound for accuracy and throughput on modern GPUs. However, the Linear SNN's ability to maintain high utility (nearly 70% active accuracy) while utilizing sparse, integer-only operations makes it the superior choice for **embedded neuromorphic hardware** where battery life and spatial constraints are paramount.
 
 ### 7.4 Confusion Matrix
 
