@@ -10,7 +10,7 @@ import numpy as np
 from sklearn.metrics import confusion_matrix, classification_report
 from torch.utils.data import DataLoader
 
-from config import device, DATA_FOLDER, NUM_OUTPUTS, BATCH_SIZE, SUMMARY_DIR
+from config import device, DATA_FOLDER, NUM_OUTPUTS, TEST_BATCH_SIZE, SUMMARY_DIR
 from model_cnn import MirrorCNN
 from dataset import SingleFileLoader
 
@@ -39,7 +39,7 @@ def run_test(target_file):
     if len(test_dataset) == 0:
         return
     
-    loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    loader = DataLoader(test_dataset, batch_size=TEST_BATCH_SIZE, shuffle=False)
     print(f" Loading Test File: {target_file} | Samples: {len(test_dataset)}")
 
     all_preds   = []

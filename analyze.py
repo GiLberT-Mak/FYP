@@ -29,8 +29,9 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
 from config import (device, MODEL_DIR, DATA_FOLDER, NUM_OUTPUTS,
-                    BATCH_SIZE, EFFICIENCY_DIR, NUM_STEPS, NUM_INPUTS, HIDDEN_SIZE)
+                    TEST_BATCH_SIZE, EFFICIENCY_DIR, NUM_STEPS, NUM_INPUTS, HIDDEN_SIZE)
 from model import TunedSNN
+from model_cnn import MirrorCNN
 from dataset import SingleFileLoader
 
 sys.stdout.reconfigure(encoding='utf-8')
@@ -49,8 +50,8 @@ SAMPLE_RATE_HZ = 2000   # NinaProDB acquisition rate in Hz
 
 def plot_spike_activity(firing_pct, base_name):
     """Bar chart of neuron firing rate (%) per layer."""
-    labels = ['LIF₁\n(512 neurons)', 'LIF₂\n(512 neurons)',
-              'LIF₃\n(256 neurons)', 'LIF_out\n(18 neurons)']
+    labels = ['LIF₁\n(256 neurons)', 'LIF₂\n(256 neurons)',
+              'LIF₃\n(128 neurons)', 'LIF_out\n(18 neurons)']
     rates  = [firing_pct[k] for k in ['lif1', 'lif2', 'lif3', 'lif_out']]
     colors = ['#2196F3', '#4CAF50', '#FF9800', '#9C27B0']
 
@@ -76,9 +77,9 @@ def plot_spike_activity(firing_pct, base_name):
 
 
 def plot_energy_comparison(energy_ann_nj, energy_snn_nj, energy_ratio, base_name):
-    """Log-scale bar chart comparing ANN vs SNN estimated energy."""
+    """Log-scale bar chart comparing CNN vs SNN estimated energy."""
     fig, ax = plt.subplots(figsize=(7, 5))
-    categories = ['Equivalent ANN\n(dense ReLU)', 'This SNN\n(sparse spikes)']
+    categories = ['1D-CNN\nBaseline', 'This SNN\n(sparse spikes)']
     energies   = [energy_ann_nj, energy_snn_nj]
     colors     = ['#EF5350', '#42A5F5']
 
@@ -89,7 +90,7 @@ def plot_energy_comparison(energy_ann_nj, energy_snn_nj, energy_ratio, base_name
 
     ax.set_yscale('log')
     ax.set_ylabel('Estimated Energy per Inference (nJ, log scale)', fontsize=11)
-    ax.set_title(f'SNN vs ANN Energy Comparison\n{base_name}', fontsize=13, pad=12)
+    ax.set_title(f'SNN vs 1D-CNN Energy Comparison\n{base_name}', fontsize=13, pad=12)
 
     # Annotation arrow
     ax.annotate(
@@ -135,6 +136,16 @@ def analyze(target_file):
     net = TunedSNN().to(device)
     net.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
     net.eval()
+    
+    # ── Load CNN model ────────────────────────────────────────────────────────
+    cnn_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Trained_CNN', f"cnn_nina_trained_{base_name}.pth")
+    has_cnn = os.path.exists(cnn_path)
+    if has_cnn:
+        cnn_net = MirrorCNN().to(device)
+        cnn_net.load_state_dict(torch.load(cnn_path, map_location=device, weights_only=True))
+        cnn_net.eval()
+    else:
+        print(f"  CNN baseline model not found at {cnn_path}, latency will not be measured.")
 
     # ── Register spike-counting hooks ─────────────────────────────────────────
     # The model loops over timesteps internally, so each hook fires once per
@@ -169,7 +180,7 @@ def analyze(target_file):
         for h in handles: h.remove()
         return
 
-    loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
+    loader = DataLoader(dataset, batch_size=TEST_BATCH_SIZE, shuffle=False)
 
     # ── GPU warm-up (prevents cold-start latency inflation) ───────────────────
     warm_data, _ = next(iter(loader))
@@ -182,7 +193,7 @@ def analyze(target_file):
         spike_totals[k]   = 0.0
         spike_possible[k] = 0.0
 
-    # ── Timed inference ───────────────────────────────────────────────────────
+    # ── Timed inference (SNN) ─────────────────────────────────────────────────
     n_samples_total    = 0
     per_sample_lat_ms  = []
 
@@ -205,6 +216,30 @@ def analyze(target_file):
     if n_samples_total == 0:
         print("  No samples were processed.")
         return
+        
+    # ── Timed inference (CNN) ─────────────────────────────────────────────────
+    cnn_lat_ms = []
+    if has_cnn:
+        # warm-up
+        warm_data_cnn = warm_data.to(device)
+        with torch.no_grad():
+            _ = cnn_net(warm_data_cnn)
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
+            
+        with torch.no_grad():
+            for data, _ in loader:
+                batch_size = data.size(0)
+                data = data.to(device) # [B, T, C] for CNN, it permutes internally
+                t0 = time.perf_counter()
+                _  = cnn_net(data)
+                if device.type == 'cuda':
+                    torch.cuda.synchronize()
+                elapsed_ms = (time.perf_counter() - t0) * 1000
+                cnn_lat_ms.append(elapsed_ms / batch_size)
+        avg_cnn_lat_ms = float(np.mean(cnn_lat_ms))
+    else:
+        avg_cnn_lat_ms = 0.0
 
     # ── Spike statistics ──────────────────────────────────────────────────────
     # avg_spikes[k] = mean total spikes produced by layer k for one input sample
@@ -215,34 +250,39 @@ def analyze(target_file):
     sparsity_pct = {k: 100.0 - firing_pct[k]                 for k in firing_pct}
 
     # ── SynOps model ──────────────────────────────────────────────────────────
+    # layer sizes of TunedSNN and MirrorCNN
+    SNN_L1 = 256
+    SNN_L2 = 256
+    SNN_L3 = 128
+    
     # A spike from layer k propagates through the next FC layer and triggers
     # one ADD per downstream connection:
-    #   lif1 → fc2  (HIDDEN_SIZE=512 connections per spike)
-    #   lif2 → fc3  (HIDDEN_SIZE//2=256 connections per spike)
-    #   lif3 → fc_out (NUM_OUTPUTS=18 connections per spike)
-    #   lif_out is terminal — classification only, no further synaptic events
     layer_fanout = {
-        'lif1':    HIDDEN_SIZE,
-        'lif2':    HIDDEN_SIZE // 2,
+        'lif1':    SNN_L2,
+        'lif2':    SNN_L3,
         'lif3':    NUM_OUTPUTS,
         'lif_out': 0,
     }
     synops_per_sample = {k: avg_spikes[k] * layer_fanout[k] for k in layer_fanout}
 
     # ── Energy model ──────────────────────────────────────────────────────────
-    # Input layer: continuous EMG → FC1 always requires full MACs
-    mac_input = NUM_STEPS * NUM_INPUTS * HIDDEN_SIZE          # 100×10×512 = 512,000
+    # Input layer: continuous EMG -> FC1 always requires full MACs
+    mac_input = NUM_STEPS * NUM_INPUTS * SNN_L1          # 50×10×256 = 128,000
 
     # Spike-driven layers: only SynOps (ADDs, much cheaper)
     snn_synops = sum(synops_per_sample[k] for k in ['lif1', 'lif2', 'lif3'])
 
-    # Equivalent dense ANN: every weight active every timestep
-    ann_macs = (
-        NUM_STEPS * NUM_INPUTS       * HIDDEN_SIZE          +  # fc1
-        NUM_STEPS * HIDDEN_SIZE      * HIDDEN_SIZE          +  # fc2
-        NUM_STEPS * HIDDEN_SIZE      * (HIDDEN_SIZE // 2)   +  # fc3
-        NUM_STEPS * (HIDDEN_SIZE//2) * NUM_OUTPUTS             # fc_out
-    )
+    # 1D-CNN Baseline MACs:
+    # MirrorCNN has 3 Conv1d blocks followed by max pooling and then linear
+    cnn_mac1 = NUM_STEPS * NUM_INPUTS * SNN_L1 * 3
+    L1_len = NUM_STEPS // 2
+    cnn_mac2 = L1_len * SNN_L1 * SNN_L2 * 3
+    L2_len = L1_len // 2
+    cnn_mac3 = L2_len * SNN_L2 * SNN_L3 * 3
+    L3_len = L2_len // 2
+    cnn_mac_fc = L3_len * SNN_L3 * NUM_OUTPUTS
+    
+    ann_macs = cnn_mac1 + cnn_mac2 + cnn_mac3 + cnn_mac_fc
 
     energy_ann_nj = ann_macs * E_MAC_PJ / 1000
     energy_snn_nj = (mac_input * E_MAC_PJ + snn_synops * E_ADD_PJ) / 1000
@@ -262,9 +302,11 @@ def analyze(target_file):
     print(f"\n  --- Real-Time Analysis ---")
     row("Signal window (real time)", f"{window_ms:.1f}", "ms")
     row("Total test samples",        f"{n_samples_total}", "")
-    row("Avg inference latency",     f"{avg_lat_ms:.3f}", f"ms / sample  [{device.type.upper()}]")
+    row("SNN avg inference latency", f"{avg_lat_ms:.3f}", f"ms / sample  [{device.type.upper()}]")
+    if has_cnn:
+        row("CNN avg inference latency", f"{avg_cnn_lat_ms:.3f}", f"ms / sample  [{device.type.upper()}]")
     rt_str = f"YES  ({realtime_factor:.1f}x headroom)" if is_realtime else f"NO  ({realtime_factor:.2f}x)"
-    row("Real-time capable",         rt_str, "")
+    row("SNN Real-time capable",     rt_str, "")
 
     print(f"\n  --- Layer-wise Spike Statistics ---")
     print(f"  {'Layer':<10}  {'Sparsity':>10}  {'Firing Rate':>12}  "
@@ -278,7 +320,7 @@ def analyze(target_file):
     print(f"\n  --- Operations per Inference Sample ---")
     print(f"  {'Metric':<38}  {'Value':>14}")
     print(f"  {'-'*54}")
-    row("Equivalent ANN MACs",                  f"{ann_macs:,.0f}", "")
+    row("1D-CNN Baseline MACs",                  f"{ann_macs:,.0f}", "")
     row("SNN: input-layer MACs  (unavoidable)",  f"{mac_input:,.0f}", "")
     row("SNN: spike SynOps  (data-dependent)",   f"{snn_synops:,.0f}", "")
     row("Total SNN operations",                  f"{mac_input + snn_synops:,.0f}", "")
@@ -288,7 +330,7 @@ def analyze(target_file):
     print(f"  (45nm CMOS — MAC={E_MAC_PJ} pJ, ADD={E_ADD_PJ} pJ)")
     print(f"  {'Metric':<38}  {'Value':>14}")
     print(f"  {'-'*54}")
-    row("Equivalent ANN energy",  f"{energy_ann_nj:,.1f}", "nJ")
+    row("1D-CNN Baseline energy", f"{energy_ann_nj:,.1f}", "nJ")
     row("This SNN energy",        f"{energy_snn_nj:,.1f}", "nJ")
     row("Energy savings",         f"{energy_ratio:.1f}x", "more efficient")
 
@@ -306,10 +348,12 @@ def analyze(target_file):
         w = csv.writer(f)
         w.writerow(['metric', 'value', 'unit'])
         w.writerow(['window_duration_ms',      f'{window_ms:.1f}',         'ms'])
-        w.writerow(['avg_inference_ms',        f'{avg_lat_ms:.3f}',        'ms'])
+        w.writerow(['snn_avg_inference_ms',    f'{avg_lat_ms:.3f}',        'ms'])
+        if has_cnn:
+            w.writerow(['cnn_avg_inference_ms', f'{avg_cnn_lat_ms:.3f}', 'ms'])
         w.writerow(['realtime_headroom_x',     f'{realtime_factor:.2f}',   'x'])
         w.writerow(['is_realtime',             str(is_realtime),           ''])
-        w.writerow(['ann_macs_per_sample',     f'{ann_macs:.0f}',          'MACs'])
+        w.writerow(['cnn_macs_per_sample',     f'{ann_macs:.0f}',          'MACs'])
         w.writerow(['snn_input_macs',          f'{mac_input:.0f}',         'MACs'])
         w.writerow(['snn_synops',              f'{snn_synops:.0f}',        'SynOps'])
         w.writerow(['operation_reduction_x',   f'{op_reduction:.2f}',      'x'])

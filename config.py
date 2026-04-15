@@ -16,6 +16,7 @@ NUM_INPUTS  = 10
 NUM_OUTPUTS = 18
 NUM_STEPS   = 50    # Standardized window size (timesteps)
 BATCH_SIZE  = 2048
+TEST_BATCH_SIZE = 1
 HIDDEN_SIZE = 512
 
 # SNN neuron parameters
@@ -25,7 +26,7 @@ BETA      = 0.90   # Initial membrane decay (learnable per-layer)
 
 # Training hyper-parameters
 NUM_EPOCHS              = 101
-EARLY_STOPPING_PATIENCE = 20   # Stop if val acc doesn't improve for this many epochs
+EARLY_STOPPING_PATIENCE = 15   # Stop if val acc doesn't improve for this many epochs
 
 if torch.cuda.is_available():
     device = torch.device("cuda")

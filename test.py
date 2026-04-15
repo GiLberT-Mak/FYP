@@ -21,7 +21,7 @@ def natural_sort_key(s):
     return [int(text) if text.isdigit() else text.lower()
             for text in re.split('([0-9]+)', s)]
 
-from config import device, MODEL_DIR, DATA_FOLDER, NUM_OUTPUTS, BATCH_SIZE, CM_DIR, RASTER_DIR, SUMMARY_DIR
+from config import device, MODEL_DIR, DATA_FOLDER, NUM_OUTPUTS, TEST_BATCH_SIZE, CM_DIR, RASTER_DIR, SUMMARY_DIR
 from model import TunedSNN
 from dataset import SingleFileLoader
 
@@ -136,7 +136,7 @@ def run_test(target_file):
         print("No valid samples found in the test file.")
         return
 
-    loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
+    loader = DataLoader(dataset, batch_size=TEST_BATCH_SIZE, shuffle=False)
 
     # ── Inference ─────────────────────────────────────────────
     print("Running inference…")

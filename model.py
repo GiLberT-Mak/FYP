@@ -13,7 +13,7 @@ class TunedSNN(nn.Module):
       - Fast-sigmoid surrogate gradient for backprop through spikes
     """
 
-    def __init__(self, layer_sizes=(128, 256, 128)):
+    def __init__(self, layer_sizes=(256, 256, 128)):
         super().__init__()
         spike_grad = surrogate.fast_sigmoid(slope=SLOPE)
 
@@ -46,11 +46,12 @@ class TunedSNN(nn.Module):
         self.lif_out = snn.Leaky(beta=BETA, reset_mechanism="none",
                                   learn_beta=True)
 
-    def forward(self, x, return_spikes=False):
+    def forward(self, x, return_spikes=False, return_all_spikes=False):
         """
         Args:
             x: [Time, Batch, Channels]
             return_spikes: if True, returns (mem_out_rec, spk3_rec) for visualization
+            return_all_spikes: if True, returns (mem_out_rec, (spk1, spk2, spk3, mem_out))
         Returns:
             mem_out_rec: [Time, Batch, NUM_OUTPUTS] (membrane potential at output layer)
         """
@@ -59,8 +60,11 @@ class TunedSNN(nn.Module):
         mem3    = self.lif3.init_leaky()
         mem_out = self.lif_out.init_leaky()
         mem_out_rec = []
-        if return_spikes:
+        if return_spikes or return_all_spikes:
             spk3_rec = []
+        if return_all_spikes:
+            spk1_rec = []
+            spk2_rec = []
 
         for step in range(x.size(0)):
             # Layer 1
@@ -82,9 +86,18 @@ class TunedSNN(nn.Module):
             cur_out = self.fc_out(spk3)
             _, mem_out = self.lif_out(cur_out, mem_out)
             mem_out_rec.append(mem_out)
-            if return_spikes:
+            if return_spikes or return_all_spikes:
                 spk3_rec.append(spk3)
+            if return_all_spikes:
+                spk1_rec.append(spk1)
+                spk2_rec.append(spk2)
 
+        if return_all_spikes:
+            return torch.stack(mem_out_rec, dim=0), (
+                torch.stack(spk1_rec, dim=0),
+                torch.stack(spk2_rec, dim=0),
+                torch.stack(spk3_rec, dim=0)
+            )
         if return_spikes:
             return torch.stack(mem_out_rec, dim=0), torch.stack(spk3_rec, dim=0)
         return torch.stack(mem_out_rec, dim=0)
